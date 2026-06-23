@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import GuardianPinModal from "@/components/GuardianPinModal";
 
 const PHOTO_KEY = "typetalk_profile_photo";
 const GUARDIAN_PURPLE = "#7C6AF7";
@@ -53,6 +54,7 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(PHOTO_KEY).then(v => { if (v) setPhotoUri(v); });
@@ -108,12 +110,21 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
     }, 300);
   };
 
-  const handleSwitchToGuardian = async () => {
+  const handleSwitchToGuardian = () => {
+    setShowPinModal(true);
+  };
+
+  const handlePinSuccess = async () => {
+    setShowPinModal(false);
     onClose();
     setTimeout(async () => {
       await setRole("guardian");
       router.replace("/guardian-dashboard");
     }, 250);
+  };
+
+  const handlePinCancel = () => {
+    setShowPinModal(false);
   };
 
   const handleSwitchToUser = async () => {
@@ -252,6 +263,11 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
           </TouchableOpacity>
         </View>
       </Animated.View>
+      <GuardianPinModal
+        visible={showPinModal}
+        onSuccess={handlePinSuccess}
+        onCancel={handlePinCancel}
+      />
     </Modal>
   );
 }

@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth, type UserRole } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import GuardianPinModal from "@/components/GuardianPinModal";
 
 type Mode = "login" | "register";
 
@@ -36,6 +37,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -66,10 +68,24 @@ export default function LoginScreen() {
       return;
     }
 
-    await setRole(selectedRole);
     setLoading(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (selectedRole === "guardian") {
+      setShowPinModal(true);
+    } else {
+      await setRole("user");
+      router.replace("/profile-setup");
+    }
+  };
+
+  const handlePinSuccess = async () => {
+    setShowPinModal(false);
+    await setRole("guardian");
     router.replace("/profile-setup");
+  };
+
+  const handlePinCancel = () => {
+    setShowPinModal(false);
   };
 
   const handleGuest = async () => {
@@ -244,6 +260,11 @@ export default function LoginScreen() {
         )}
 
       </ScrollView>
+      <GuardianPinModal
+        visible={showPinModal}
+        onSuccess={handlePinSuccess}
+        onCancel={handlePinCancel}
+      />
     </KeyboardAvoidingView>
   );
 }
