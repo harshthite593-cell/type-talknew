@@ -21,7 +21,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { user, isGuest, profileSeen, loading } = useAuth();
+  const { user, isGuest, profileSeen, role, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -30,14 +30,17 @@ function RootLayoutNav() {
       router.replace("/login");
     } else if (!profileSeen) {
       router.replace("/profile-setup");
+    } else if (role === "guardian") {
+      router.replace("/guardian-dashboard");
     }
-  }, [user, isGuest, profileSeen, loading]);
+  }, [user, isGuest, profileSeen, role, loading]);
 
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="profile-setup" options={{ headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="guardian-dashboard" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="saved-phrases" options={{ headerShown: false }} />
       <Stack.Screen name="analytics" options={{ headerShown: false }} />
       <Stack.Screen name="friends" options={{ headerShown: false }} />

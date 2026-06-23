@@ -1,0 +1,2 @@
+- [Guardian Role System](guardian-role-system.md) — role ("user"|"guardian") stored in AsyncStorage under `typetalk_role`, exposed via AuthContext `setRole` + `role` fields; affects routing in _layout.tsx and menu items in MenuDrawer.
+- [Guardian Analytics Data Sources](guardian-analytics-sources.md) — 5 dashboard widgets derive from `tts_speech_logs_v1`, `tts_emergency_events_v1`, and `guardian_session_log_v1`; all read-only from existing keys except session log.

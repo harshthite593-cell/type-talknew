@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 const PHOTO_KEY = "typetalk_profile_photo";
+const GUARDIAN_PURPLE = "#7C6AF7";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const AppLogo = require("../assets/images/logo.png") as number;
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -38,6 +39,7 @@ interface MenuItem {
   icon: string;
   label: string;
   color?: string;
+  badge?: string;
   action: () => void;
 }
 
@@ -45,7 +47,7 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const { user, isGuest, profile, logout } = useAuth();
+  const { user, isGuest, profile, role, logout, setRole } = useAuth();
 
   const slideX = useRef(new Animated.Value(-DRAWER_W)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -106,11 +108,27 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
     }, 300);
   };
 
+  const handleSwitchToGuardian = async () => {
+    onClose();
+    setTimeout(async () => {
+      await setRole("guardian");
+      router.replace("/guardian-dashboard");
+    }, 250);
+  };
+
+  const handleSwitchToUser = async () => {
+    onClose();
+    setTimeout(async () => {
+      await setRole("user");
+      router.replace("/");
+    }, 250);
+  };
+
   const displayName = profile?.name ?? user?.name ?? (isGuest ? "Guest" : "—");
   const displaySub = user?.email ?? (isGuest ? "Using without account" : "");
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
-  const menuItems: MenuItem[] = [
+  const userMenuItems: MenuItem[] = [
     { icon: "zap", label: "Typing Test", action: () => navigate("/typing-test") },
     { icon: "users", label: "Friends", action: () => navigate("/friends") },
     { icon: "bookmark", label: "Saved Phrases", action: () => navigate("/saved-phrases") },
@@ -119,6 +137,14 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
     { icon: "sliders", label: "Voice Settings", action: () => switchPanel("settings") },
     { icon: "alert-triangle", label: "Emergency", color: "#FF6B6B", action: () => navigate("/emergency") },
   ];
+
+  const guardianMenuItems: MenuItem[] = [
+    { icon: "shield", label: "Guardian Dashboard", color: GUARDIAN_PURPLE, action: () => navigate("/guardian-dashboard") },
+    { icon: "bar-chart-2", label: "Analytics", action: () => navigate("/analytics") },
+    { icon: "alert-triangle", label: "Emergency", color: "#FF6B6B", action: () => navigate("/emergency") },
+  ];
+
+  const menuItems = role === "guardian" ? guardianMenuItems : userMenuItems;
 
   const s = makeStyles(colors, topPad, DRAWER_W);
 
@@ -153,7 +179,15 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
             </View>
           </TouchableOpacity>
           <View style={s.profileInfo}>
-            <Text style={s.profileName} numberOfLines={1}>{displayName}</Text>
+            <View style={s.profileNameRow}>
+              <Text style={s.profileName} numberOfLines={1}>{displayName}</Text>
+              {role === "guardian" && (
+                <View style={s.roleBadge}>
+                  <Feather name="shield" size={10} color="#fff" />
+                  <Text style={s.roleBadgeText}>Guardian</Text>
+                </View>
+              )}
+            </View>
             {displaySub ? <Text style={s.profileSub} numberOfLines={1}>{displaySub}</Text> : null}
             {profile && (
               <Text style={s.profileMeta}>{profile.age} yrs · {profile.gender}</Text>
@@ -165,6 +199,30 @@ export default function MenuDrawer({ visible, onClose, onSwitchPanel }: Props) {
             )}
           </View>
         </View>
+
+        <View style={s.divider} />
+
+        {/* Role switcher — only for authenticated users */}
+        {!isGuest && (
+          <View style={s.roleSwitcher}>
+            <TouchableOpacity
+              style={[s.roleTab, role === "user" && s.roleTabActive]}
+              onPress={handleSwitchToUser}
+              activeOpacity={0.8}
+            >
+              <Feather name="mic" size={14} color={role === "user" ? "#000" : colors.mutedForeground} />
+              <Text style={[s.roleTabText, role === "user" && s.roleTabTextActive]}>User</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.roleTab, role === "guardian" && s.roleTabGuardian]}
+              onPress={handleSwitchToGuardian}
+              activeOpacity={0.8}
+            >
+              <Feather name="shield" size={14} color={role === "guardian" ? "#fff" : colors.mutedForeground} />
+              <Text style={[s.roleTabText, role === "guardian" && s.roleTabTextGuardian]}>Guardian</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={s.divider} />
 
@@ -215,11 +273,28 @@ function makeStyles(colors: ReturnType<typeof useColors>, topPad: number, drawer
     avatarInitials: { fontSize: 22, fontWeight: "700", color: colors.primary },
     cameraBtn: { position: "absolute", bottom: 0, right: 0, backgroundColor: colors.primary, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     profileInfo: { flex: 1 },
+    profileNameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
     profileName: { fontSize: 16, fontWeight: "700", color: colors.foreground },
+    roleBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: GUARDIAN_PURPLE, borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
+    roleBadgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
     profileSub: { fontSize: 12, color: colors.mutedForeground, marginTop: 1 },
     profileMeta: { fontSize: 12, color: colors.mutedForeground, marginTop: 3 },
     signInLink: { fontSize: 12, color: colors.primary, fontWeight: "600", marginTop: 4 },
     divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 20, marginVertical: 4 },
+
+    // Role switcher
+    roleSwitcher: { flexDirection: "row", gap: 8, marginHorizontal: 20, marginVertical: 10 },
+    roleTab: {
+      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 6, paddingVertical: 8, borderRadius: 10,
+      borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.background,
+    },
+    roleTabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    roleTabGuardian: { backgroundColor: GUARDIAN_PURPLE, borderColor: GUARDIAN_PURPLE },
+    roleTabText: { fontSize: 13, fontWeight: "600", color: colors.mutedForeground },
+    roleTabTextActive: { color: "#000" },
+    roleTabTextGuardian: { color: "#fff" },
+
     nav: { paddingTop: 8 },
     navItem: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 13 },
     navIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: `${colors.foreground}10`, alignItems: "center", justifyContent: "center" },

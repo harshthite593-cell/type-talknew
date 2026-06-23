@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, type UserRole } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 type Mode = "login" | "register";
@@ -25,9 +25,10 @@ type Mode = "login" | "register";
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login, register, continueAsGuest } = useAuth();
+  const { login, register, continueAsGuest, setRole } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
+  const [selectedRole, setSelectedRole] = useState<UserRole>("user");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +39,12 @@ export default function LoginScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const handleRoleSelect = (role: UserRole) => {
+    setSelectedRole(role);
+    setError(null);
+    Haptics.selectionAsync();
+  };
 
   const handleSubmit = async () => {
     setError(null);
@@ -52,20 +59,24 @@ export default function LoginScreen() {
       ? await login(email.trim(), password)
       : await register(name.trim(), email.trim(), password);
 
-    setLoading(false);
     if (err) {
+      setLoading(false);
       setError(err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/profile-setup");
+      return;
     }
+
+    await setRole(selectedRole);
+    setLoading(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace("/profile-setup");
   };
 
   const handleGuest = async () => {
     setGuestLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await continueAsGuest();
+    await setRole("user");
     setGuestLoading(false);
     router.replace("/profile-setup");
   };
@@ -83,7 +94,58 @@ export default function LoginScreen() {
           <Text style={s.tagline}>Your voice, amplified</Text>
         </View>
 
-        {/* Card */}
+        {/* Role Selector */}
+        <View style={s.roleCard}>
+          <Text style={s.roleTitle}>Who are you signing in as?</Text>
+          <View style={s.roleRow}>
+            <TouchableOpacity
+              style={[s.rolePill, selectedRole === "user" && s.rolePillActive]}
+              onPress={() => handleRoleSelect("user")}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name="mic"
+                size={16}
+                color={selectedRole === "user" ? "#000" : colors.mutedForeground}
+              />
+              <Text style={[s.rolePillText, selectedRole === "user" && s.rolePillTextActive]}>
+                User
+              </Text>
+              <Text style={[s.rolePillSub, selectedRole === "user" && s.rolePillSubActive]}>
+                I communicate
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.rolePill, selectedRole === "guardian" && s.rolePillGuardian]}
+              onPress={() => handleRoleSelect("guardian")}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name="shield"
+                size={16}
+                color={selectedRole === "guardian" ? "#fff" : colors.mutedForeground}
+              />
+              <Text style={[s.rolePillText, selectedRole === "guardian" && s.rolePillTextGuardian]}>
+                Guardian
+              </Text>
+              <Text style={[s.rolePillSub, selectedRole === "guardian" && s.rolePillSubGuardian]}>
+                I monitor & support
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {selectedRole === "guardian" && (
+            <View style={s.guardianNote}>
+              <Feather name="info" size={13} color="#7C6AF7" />
+              <Text style={s.guardianNoteText}>
+                Guardian mode shows a monitoring dashboard with analytics about the user's communication patterns.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Auth Card */}
         <View style={s.card}>
           <Text style={s.cardTitle}>{mode === "login" ? "Welcome back" : "Create account"}</Text>
 
@@ -129,9 +191,25 @@ export default function LoginScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={[s.submitBtn, loading && s.disabled]} onPress={handleSubmit} disabled={loading} activeOpacity={0.85}>
-            {loading ? <ActivityIndicator color="#000" size="small" /> : (
-              <Text style={s.submitBtnText}>{mode === "login" ? "Sign in" : "Create account"}</Text>
+          <TouchableOpacity
+            style={[s.submitBtn, selectedRole === "guardian" && s.submitBtnGuardian, loading && s.disabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? <ActivityIndicator color={selectedRole === "guardian" ? "#fff" : "#000"} size="small" /> : (
+              <>
+                <Feather
+                  name={selectedRole === "guardian" ? "shield" : "mic"}
+                  size={16}
+                  color={selectedRole === "guardian" ? "#fff" : "#000"}
+                />
+                <Text style={[s.submitBtnText, selectedRole === "guardian" && s.submitBtnTextGuardian]}>
+                  {mode === "login"
+                    ? selectedRole === "guardian" ? "Sign in as Guardian" : "Sign in"
+                    : selectedRole === "guardian" ? "Create Guardian account" : "Create account"}
+                </Text>
+              </>
             )}
           </TouchableOpacity>
 
@@ -150,16 +228,20 @@ export default function LoginScreen() {
           <View style={s.dividerLine} />
         </View>
 
-        {/* Guest */}
-        <TouchableOpacity style={[s.guestBtn, guestLoading && s.disabled]} onPress={handleGuest} disabled={guestLoading} activeOpacity={0.8}>
-          {guestLoading ? <ActivityIndicator color={colors.mutedForeground} size="small" /> : (
-            <>
-              <Feather name="user-x" size={18} color={colors.mutedForeground} />
-              <Text style={s.guestBtnText}>Continue without account</Text>
-            </>
-          )}
-        </TouchableOpacity>
-        <Text style={s.guestNote}>Guest mode — your data stays on this device only</Text>
+        {/* Guest — only for User role */}
+        {selectedRole === "user" && (
+          <>
+            <TouchableOpacity style={[s.guestBtn, guestLoading && s.disabled]} onPress={handleGuest} disabled={guestLoading} activeOpacity={0.8}>
+              {guestLoading ? <ActivityIndicator color={colors.mutedForeground} size="small" /> : (
+                <>
+                  <Feather name="user-x" size={18} color={colors.mutedForeground} />
+                  <Text style={s.guestBtnText}>Continue without account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <Text style={s.guestNote}>Guest mode — your data stays on this device only</Text>
+          </>
+        )}
 
       </ScrollView>
     </KeyboardAvoidingView>
@@ -170,10 +252,31 @@ function makeStyles(colors: ReturnType<typeof useColors>, topPad: number, bottom
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     scroll: { flexGrow: 1, paddingTop: topPad + 16, paddingBottom: bottomPad + 24, paddingHorizontal: 20, justifyContent: "center" },
-    logoWrap: { alignItems: "center", marginBottom: 28 },
-    logo: { width: 160, height: 134, marginBottom: 6 },
-    appName: { fontSize: 26, fontWeight: "700", color: colors.foreground, letterSpacing: -0.5 },
+    logoWrap: { alignItems: "center", marginBottom: 20 },
+    logo: { width: 140, height: 117, marginBottom: 6 },
     tagline: { fontSize: 13, color: colors.mutedForeground, marginTop: 3 },
+
+    // Role selector
+    roleCard: { backgroundColor: colors.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: colors.border, marginBottom: 14 },
+    roleTitle: { fontSize: 13, fontWeight: "600", color: colors.mutedForeground, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+    roleRow: { flexDirection: "row", gap: 10 },
+    rolePill: {
+      flex: 1, alignItems: "center", gap: 4, paddingVertical: 14,
+      borderRadius: 14, borderWidth: 1.5, borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    rolePillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    rolePillGuardian: { backgroundColor: "#7C6AF7", borderColor: "#7C6AF7" },
+    rolePillText: { fontSize: 14, fontWeight: "700", color: colors.mutedForeground },
+    rolePillTextActive: { color: "#000" },
+    rolePillTextGuardian: { color: "#fff" },
+    rolePillSub: { fontSize: 10, color: colors.mutedForeground, textAlign: "center" },
+    rolePillSubActive: { color: "rgba(0,0,0,0.6)" },
+    rolePillSubGuardian: { color: "rgba(255,255,255,0.75)" },
+    guardianNote: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 12, backgroundColor: "#7C6AF710", borderRadius: 10, padding: 10 },
+    guardianNoteText: { flex: 1, fontSize: 12, color: "#7C6AF7", lineHeight: 17 },
+
+    // Auth card
     card: { backgroundColor: colors.card, borderRadius: 20, padding: 22, borderWidth: 1, borderColor: colors.border },
     cardTitle: { fontSize: 19, fontWeight: "700", color: colors.foreground, marginBottom: 18 },
     fieldWrap: { marginBottom: 14 },
@@ -184,9 +287,11 @@ function makeStyles(colors: ReturnType<typeof useColors>, topPad: number, bottom
     eyeBtn: { padding: 4 },
     errorBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FF6B6B20", borderRadius: 10, padding: 10, marginBottom: 10 },
     errorText: { fontSize: 13, color: "#FF6B6B", flex: 1 },
-    submitBtn: { backgroundColor: colors.primary, borderRadius: 13, height: 48, alignItems: "center", justifyContent: "center", marginTop: 4 },
+    submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primary, borderRadius: 13, height: 48, marginTop: 4 },
+    submitBtnGuardian: { backgroundColor: "#7C6AF7" },
     disabled: { opacity: 0.6 },
     submitBtnText: { fontSize: 15, fontWeight: "700", color: "#000" },
+    submitBtnTextGuardian: { color: "#fff" },
     switchBtn: { alignItems: "center", marginTop: 14 },
     switchText: { fontSize: 13, color: colors.mutedForeground },
     switchLink: { color: colors.primary, fontWeight: "600" },

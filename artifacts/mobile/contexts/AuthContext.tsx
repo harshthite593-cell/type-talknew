@@ -7,14 +7,16 @@ const GUEST_KEY = "typetalk_is_guest";
 const PROFILE_KEY = "typetalk_profile";
 const PHOTO_KEY = "typetalk_profile_photo";
 const PROFILE_SEEN_KEY = "typetalk_profile_seen";
+const ROLE_KEY = "typetalk_role";
 
-// Build the API base URL. EXPO_PUBLIC_DOMAIN is injected by the dev script.
 const domain = process.env["EXPO_PUBLIC_DOMAIN"];
 const API_BASE = domain
   ? `https://${domain}/api`
   : (process.env["EXPO_PUBLIC_API_BASE_URL"] ?? "http://localhost:8080/api");
 
 export { API_BASE };
+
+export type UserRole = "user" | "guardian";
 
 export interface AuthUser {
   id: string;
@@ -36,6 +38,7 @@ interface AuthState {
   isGuest: boolean;
   profile: UserProfile | null;
   profileSeen: boolean;
+  role: UserRole;
   loading: boolean;
 }
 
@@ -46,36 +49,39 @@ interface AuthContextValue extends AuthState {
   updateProfile: (profile: UserProfile) => Promise<string | null>;
   skipProfile: () => Promise<void>;
   logout: () => Promise<void>;
+  setRole: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
-    user: null, token: null, isGuest: false, profile: null, profileSeen: false, loading: true,
+    user: null, token: null, isGuest: false, profile: null, profileSeen: false, role: "user", loading: true,
   });
 
   useEffect(() => {
     (async () => {
       try {
-        const [token, userRaw, guestRaw, profileRaw, seenRaw] = await Promise.all([
+        const [token, userRaw, guestRaw, profileRaw, seenRaw, roleRaw] = await Promise.all([
           AsyncStorage.getItem(AUTH_TOKEN_KEY),
           AsyncStorage.getItem(AUTH_USER_KEY),
           AsyncStorage.getItem(GUEST_KEY),
           AsyncStorage.getItem(PROFILE_KEY),
           AsyncStorage.getItem(PROFILE_SEEN_KEY),
+          AsyncStorage.getItem(ROLE_KEY),
         ]);
         const profile: UserProfile | null = profileRaw ? JSON.parse(profileRaw) : null;
         const profileSeen = seenRaw === "true" || !!profile;
+        const role: UserRole = (roleRaw === "guardian") ? "guardian" : "user";
         if (token && userRaw) {
-          setState({ user: JSON.parse(userRaw) as AuthUser, token, isGuest: false, profile, profileSeen, loading: false });
+          setState({ user: JSON.parse(userRaw) as AuthUser, token, isGuest: false, profile, profileSeen, role, loading: false });
         } else if (guestRaw === "true") {
-          setState({ user: null, token: null, isGuest: true, profile, profileSeen, loading: false });
+          setState({ user: null, token: null, isGuest: true, profile, profileSeen, role, loading: false });
         } else {
-          setState({ user: null, token: null, isGuest: false, profile: null, profileSeen: false, loading: false });
+          setState({ user: null, token: null, isGuest: false, profile: null, profileSeen: false, role: "user", loading: false });
         }
       } catch {
-        setState({ user: null, token: null, isGuest: false, profile: null, profileSeen: false, loading: false });
+        setState({ user: null, token: null, isGuest: false, profile: null, profileSeen: false, role: "user", loading: false });
       }
     })();
   }, []);
@@ -87,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.removeItem(GUEST_KEY),
     ]);
     setState(prev => ({ ...prev, user, token, isGuest: false, loading: false }));
+  }, []);
+
+  const setRole = useCallback(async (role: UserRole) => {
+    await AsyncStorage.setItem(ROLE_KEY, role);
+    setState(prev => ({ ...prev, role }));
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
@@ -138,7 +149,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
     await AsyncStorage.setItem(PROFILE_SEEN_KEY, "true");
     setState(prev => ({ ...prev, profile, profileSeen: true }));
-    // Sync to server if authenticated
     const tokenRaw = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
     if (tokenRaw) {
       try {
@@ -147,9 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tokenRaw}` },
           body: JSON.stringify(profile),
         });
-      } catch {
-        // Ignore sync failures — local profile is saved
-      }
+      } catch { /* ignore */ }
     }
     return null;
   }, []);
@@ -161,12 +169,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.removeItem(GUEST_KEY),
       AsyncStorage.removeItem(PROFILE_KEY),
       AsyncStorage.removeItem(PROFILE_SEEN_KEY),
+      AsyncStorage.removeItem(ROLE_KEY),
     ]);
-    setState({ user: null, token: null, isGuest: false, profile: null, profileSeen: false, loading: false });
+    setState({ user: null, token: null, isGuest: false, profile: null, profileSeen: false, role: "user", loading: false });
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, continueAsGuest, updateProfile, skipProfile, logout }}>
+    <AuthContext.Provider value={{ ...state, login, register, continueAsGuest, updateProfile, skipProfile, logout, setRole }}>
       {children}
     </AuthContext.Provider>
   );
