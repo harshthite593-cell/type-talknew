@@ -51,6 +51,7 @@ outputType = "webview"
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
+integrations = ["javascript_gemini_ai_integrations:2.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -111,3 +112,6 @@ defaultBucketID = "replit-objstore-855e756f-551b-441b-820d-b4c4e25aed19"
 
 [userenv.shared]
 JWT_SECRET = "4178da26efbb5647f7416ac97e47a2fabc3424c45ccb426e11ad142aebc655cf26d12b573d5d74c0c651584590c763bb1920c2623fee40154caa6c0278c9ef7b"
+
+[nix]
+channel = "stable-25_05"
