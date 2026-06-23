@@ -57,6 +57,10 @@ path = "scripts/post-merge.sh"
 timeoutMs = 20000
 
 [[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
 localPort = 8080
 externalPort = 8080
 
@@ -99,10 +103,6 @@ externalPort = 3000
 [[ports]]
 localPort = 18116
 externalPort = 6800
-
-[[ports]]
-localPort = 5000
-externalPort = 80
 
 [objectStorage]
 defaultBucketID = "replit-objstore-855e756f-551b-441b-820d-b4c4e25aed19"
