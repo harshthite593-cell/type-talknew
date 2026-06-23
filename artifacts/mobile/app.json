@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Type Talk",
-    "slug": "mobile",
+    "name": "TypeTalk",
+    "slug": "typetalk",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "mobile",
+    "scheme": "typetalk",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -14,10 +14,12 @@
       "backgroundColor": "#0D0F14"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.typetalk.app"
     },
     "android": {
-      "backgroundColor": "#0D0F14"
+      "backgroundColor": "#0D0F14",
+      "package": "com.typetalk.app"
     },
     "web": {
       "favicon": "./assets/images/logo.png"
