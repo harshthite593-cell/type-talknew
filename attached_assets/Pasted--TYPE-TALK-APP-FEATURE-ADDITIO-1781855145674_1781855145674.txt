@@ -1,0 +1,118 @@
+═══════════════════════════════════════════════════════════════════
+TYPE TALK APP — FEATURE ADDITION 1 OF 12
+FEATURE: Save & Reuse Phrases
+═══════════════════════════════════════════════════════════════════
+
+⚠️ CRITICAL INSTRUCTIONS — READ FIRST:
+
+The Type Talk app is currently WORKING. The Bluetooth glove input 
+and Text-to-Speech functionality must NOT be modified or broken.
+
+DO NOT TOUCH:
+❌ The main text input field that receives Bluetooth keyboard input
+❌ The Text-to-Speech engine initialization or speak() function
+❌ The Enter key handler that triggers speech
+❌ Any existing BLE-related code
+
+YOU CAN ONLY ADD new code. You cannot modify existing working code.
+
+If you need to modify existing code, ONLY do so to ADD a button or 
+icon — never to change the core typing or speaking flow.
+
+═══════════════════════════════════════════════════════════════════
+WHAT TO BUILD: SAVE & REUSE PHRASES FEATURE
+═══════════════════════════════════════════════════════════════════
+
+PURPOSE:
+Users will type the same phrases repeatedly ("I want water", 
+"Thank you", "I love you"). Let them save these as quick-access 
+buttons so they don't have to retype every time.
+
+IMPLEMENTATION SPECIFICATION:
+
+1. ADD A SMALL "SAVE" BUTTON
+   - Location: Next to the existing Enter/Speak button
+   - Icon: Bookmark or heart icon (💾 or ⭐)
+   - Size: 48dp × 48dp (smaller than main Speak button)
+   - Color: Teal (#4ECDC4) background, white icon
+   - Behavior: When tapped, saves whatever is currently in the 
+     input text field
+
+2. CREATE A "SAVED PHRASES" SCREEN
+   - Add a new screen accessible from a menu icon or "My Phrases" 
+     button somewhere visible on home screen
+   - Screen shows list of all saved phrases
+   - Each saved phrase card has:
+     * The phrase text (large, readable, 18sp)
+     * A "🔊 Speak" button (taps to speak instantly via TTS)
+     * A "🗑️ Delete" button (removes the phrase)
+   - Empty state message: "No saved phrases yet. Save your 
+     favorites by tapping the bookmark icon!"
+
+3. DATA STORAGE
+   - Use simple localStorage (if web app) or AsyncStorage 
+     (if React Native) or SQLite (if native)
+   - Store as JSON array of objects:
+     {
+       id: timestamp,
+       text: "the phrase",
+       savedAt: ISO date string
+     }
+   - Persist across app restarts
+
+4. SAVE LOGIC
+   - When user taps Save button:
+     a) Check if input field has text (not empty)
+     b) Check if phrase already exists (prevent duplicates)
+     c) Add to saved phrases list
+     d) Show brief toast/snackbar: "Phrase saved! ✅"
+     e) Keep text in input field (don't clear it)
+   
+   - If input is empty, show: "Type something first to save"
+   - If duplicate, show: "This phrase is already saved"
+
+5. NAVIGATION
+   - Add a "My Phrases" link/button on home screen
+   - OR add a side menu with "Saved Phrases" option
+   - Keep it accessible but not interfering with main typing area
+
+6. UI/UX REQUIREMENTS
+   - Maintain existing design language (colors, fonts)
+   - Smooth transitions between home and saved phrases screen
+   - Back button to return to home from saved phrases screen
+   - All buttons must be at least 48dp for accessibility
+
+═══════════════════════════════════════════════════════════════════
+TESTING CHECKLIST (verify after implementation)
+═══════════════════════════════════════════════════════════════════
+
+After implementing, the following MUST still work:
+
+✅ TEST 1: Type "hello" on glove → Press Enter → Speech plays
+✅ TEST 2: Type "hello" on soft keyboard → Press Enter → Speech plays  
+✅ TEST 3: All previous functionality intact
+
+NEW functionality to verify:
+
+✅ TEST 4: Type "I want water" → Tap Save button → See success message
+✅ TEST 5: Navigate to Saved Phrases screen → See "I want water"
+✅ TEST 6: Tap Speak button on saved phrase → Speech plays
+✅ TEST 7: Tap Delete → Phrase removed
+✅ TEST 8: Close and reopen app → Saved phrases still there
+✅ TEST 9: Try to save empty phrase → See error message
+✅ TEST 10: Try to save duplicate → See "already saved" message
+
+═══════════════════════════════════════════════════════════════════
+DELIVERABLE
+═══════════════════════════════════════════════════════════════════
+
+Provide:
+1. All new code added (new files + modified files)
+2. List of files changed
+3. Brief explanation of how to access the new feature
+4. Confirmation that core TTS + BLE functionality is untouched
+
+REMINDER: The goal is to ADD functionality without breaking the 
+working core. If you cannot add this feature without modifying 
+core TTS/BLE code, STOP and explain why instead of guessing.
+═══════════════════════════════════════════════════════════════════

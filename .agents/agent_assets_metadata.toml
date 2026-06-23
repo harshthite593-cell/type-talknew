@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "nxVYl8SosZ0SVvyORBNxJ"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "TTS app icon"

@@ -1,0 +1,266 @@
+═══════════════════════════════════════════════════════════════════
+TYPE TALK APP — FEATURE UPGRADE PROMPT 1 OF 6
+FEATURES: Usage Analytics Dashboard + Smart Emergency Mode
+═══════════════════════════════════════════════════════════════════
+CONTEXT:
+I have a working Android app called "Type Talk" — an accessibility
+text-to-speech app for speech-impaired users. The app currently has:
+Working TTS (TextToSpeech API)
+Home screen with large text input field
+SPEAK button that speaks typed text
+Basic voice customization (speed, pitch)
+Background service (foreground notification)
+Dark mode support
+The app uses:
+Kotlin + Jetpack Compose
+Material Design 3
+MVVM architecture with ViewModels
+Room database for local storage
+Android TextToSpeech API
+Design system:
+Primary: #4ECDC4 (Teal)
+Secondary: #FF6B6B (Coral)
+Accent: #FFE66D (Yellow)
+Background: #FFF9F5 (Light) / #1A2332 (Dark)
+Fonts: Poppins (headings), Inter (body)
+Border radius: 20dp cards, 28dp hero elements
+Min touch target: 56dp
+I need you to add TWO major features. Implement COMPLETE,
+PRODUCTION-READY code for each.
+═══════════════════════════════════════════════════════════════════
+FEATURE 1: USAGE ANALYTICS DASHBOARD
+═══════════════════════════════════════════════════════════════════
+PURPOSE:
+Track every spoken phrase and display beautiful usage statistics
+like Spotify Wrapped. This shows judges we have data-driven
+product thinking and AI insights.
+WHAT TO BUILD:
+DATABASE LAYER:
+Create a Room entity called "SpeechLog" with fields:
+id (auto-generated Long)
+text (String — the spoken text)
+timestamp (Long — epoch milliseconds)
+wordCount (Int — number of words)
+voiceProfile (String — which voice was used)
+mood (String — user's mood at time of speaking, nullable)
+language (String — language code)
+duration (Float — estimated speech duration in seconds)
+Create a DAO called "SpeechLogDao" with these queries:
+insertLog(log: SpeechLog)
+getLogsForDate(startOfDay: Long, endOfDay: Long): List<SpeechLog>
+getLogsForWeek(startOfWeek: Long, endOfWeek: Long): List<SpeechLog>
+getTotalWordsToday(startOfDay: Long): Int
+getTotalWordsThisWeek(startOfWeek: Long): Int
+getMostUsedPhrases(limit: Int, since: Long): List<PhraseCount>
+(PhraseCount is a data class with text: String, count: Int)
+getActiveDays(since: Long): Int (count of unique days with logs)
+getDailyWordCounts(startDate: Long, endDate: Long): List<DailyCount>
+(DailyCount has date: Long, totalWords: Int)
+getStreak(): Int (consecutive days with at least 1 log)
+deleteAllLogs()
+LOGGING INTEGRATION:
+Modify the existing TtsManager or HomeViewModel so that EVERY
+time speak() is called successfully, a SpeechLog is automatically
+inserted into the database with all fields populated.
+Calculate estimated duration using:
+duration = wordCount / (speechRate * 2.5)
+(average 2.5 words per second at normal speed)
+ANALYTICS VIEWMODEL:
+Create "AnalyticsViewModel" that provides:
+totalWordsToday: StateFlow<Int>
+totalWordsThisWeek: StateFlow<Int>
+totalWordsAllTime: StateFlow<Int>
+currentStreak: StateFlow<Int>
+mostUsedPhrases: StateFlow<List<PhraseCount>> (top 5)
+dailyWordCounts: StateFlow<List<DailyCount>> (last 7 days)
+totalSpeakingMinutes: StateFlow<Float>
+averageWordsPerDay: StateFlow<Float>
+aiInsight: StateFlow<String> (generated weekly insight)
+For the AI insight, generate a simple rule-based insight:
+If words increased from last week: "Great progress! You spoke
+{X}% more this week. Keep it up! 🎉"
+If most used phrase changed: "Interesting! You've been talking
+about '{phrase}' a lot this week."
+If streak > 7: "Amazing {streak}-day streak! You're on fire! 🔥"
+Default: "You've spoken {total} words this week. Every word
+matters. Keep going! 💪"
+ANALYTICS SCREEN UI:
+Create "AnalyticsScreen" composable with this layout:
+TOP SECTION: Hero Stats Card
+Gradient background (teal to dark teal)
+Large number: "{totalWordsThisWeek}" (48sp, white, bold)
+Subtitle: "words spoken this week" (16sp, white 80%)
+Comparison badge: "↑ 47% from last week" (green badge)
+STREAK SECTION:
+Fire emoji + "{streak} day streak!"
+Animated flame icon if streak > 3
+"Don't break it! 💪" subtitle
+DAILY CHART SECTION:
+Title: "Last 7 Days"
+Bar chart showing daily word counts
+Each bar colored teal with rounded tops
+Day labels below (Mon, Tue, Wed, etc.)
+Highlight today's bar with coral color
+(Implement bar chart using Canvas composable drawing —
+do NOT use external chart library)
+TOP PHRASES SECTION:
+Title: "Your Most Used Phrases"
+List of top 5 phrases with:
+Rank number (1-5)
+Phrase text (truncated to 30 chars)
+Usage count badge
+Small "speak" icon button to replay
+AI INSIGHT CARD:
+Lightbulb emoji + "Weekly Insight"
+Card with yellow tint background
+AI-generated insight text (16sp)
+BOTTOM STATS GRID (2x2):
+"Total Speaking Time: {X}h {Y}m"
+"Average Words/Day: {X}"
+"Phrases Saved: {X}"
+"Languages Used: {X}"
+NAVIGATION:
+Add "📊 My Progress" item to the side drawer menu
+Link to AnalyticsScreen
+═══════════════════════════════════════════════════════════════════
+FEATURE 2: SMART EMERGENCY MODE
+═══════════════════════════════════════════════════════════════════
+PURPOSE:
+Life-saving emergency feature that activates instantly, speaks
+emergency phrases LOUDLY, sends SMS with GPS location to emergency
+contacts, and provides one-tap call to 112. This shows judges we
+understand real-world safety requirements.
+WHAT TO BUILD:
+EMERGENCY CONTACTS STORAGE:
+Create Room entity "EmergencyContact" with fields:
+id (auto-generated Long)
+name (String)
+phone (String)
+relationship (String — "Parent", "Doctor", "Friend", etc.)
+isActive (Boolean — whether to notify in emergency)
+Create DAO with:
+insert, update, delete
+getActiveContacts(): List<EmergencyContact>
+getAllContacts(): List<EmergencyContact>
+EMERGENCY CONTACT SETUP SCREEN:
+Title: "Emergency Contacts"
+Subtitle: "These people will be notified in emergencies"
+List of saved contacts with edit/delete
+"Add Contact" button
+Each contact card shows: Name, Phone, Relationship, Active toggle
+Maximum 5 contacts
+At least 1 contact required before emergency mode works
+EMERGENCY MODE SCREEN:
+This screen MUST be dramatic and clear.
+ACTIVATION METHODS:
+Method 1: Tap 🚨 icon in side drawer
+Method 2: Triple-press Enter key rapidly (detect 3 presses
+within 1.5 seconds in the text field key handler)
+Method 3: Long-press the SPEAK button for 3 seconds
+SCREEN DESIGN:
+Full screen takeover
+Background: Animated RED gradient (#FF6B6B to #C53030) with
+subtle pulse animation
+Top: Large "🚨 EMERGENCY" text (Poppins Bold 40sp, white)
+Pulsing animation on header (scale 1.0 to 1.05, repeat)
+EMERGENCY PHRASE GRID (2 columns, 3 rows):
+Each button is 48% width, 100dp height, white background,
+red text, rounded corners 20dp:
+Button 1: 🚨 "I NEED HELP NOW"
+Button 2: 🏥 "CALL AMBULANCE"
+Button 3: 💊 "I NEED MY MEDICINE"
+Button 4: 🤕 "I AM HURT"
+Button 5: 😰 "I AM HAVING A PANIC ATTACK"
+Button 6: 📞 "CALL MY EMERGENCY CONTACT"
+BUTTON BEHAVIOR:
+When ANY emergency button is tapped:
+a) Immediately set media volume to MAXIMUM programmatically
+b) Speak the phrase using TTS at maximum volume
+c) Show brief "Speaking..." indicator
+d) After speaking, keep button highlighted to show it was used
+BOTTOM SECTION:
+Large "📞 CALL 112" button (white bg, red text, full width,
+80dp height)
+When tapped: Opens phone dialer with 112 pre-filled
+Below: "📍 Send My Location" button
+Gets current GPS location using FusedLocationProviderClient
+Sends SMS to ALL active emergency contacts:
+"🚨 EMERGENCY ALERT from [User Name] via Type Talk App.
+Message: [Last spoken emergency phrase]
+Location: https://maps.google.com/?q=[lat],[lng]
+Time: [formatted timestamp]
+Please respond immediately."
+EXIT:
+Small "I'm Safe Now" text button in top-right corner
+Tapping it shows confirmation dialog: "Are you sure you're
+safe?" with Yes/No
+On confirm: Returns to home screen, logs the event
+EMERGENCY EVENT LOGGING:
+Create Room entity "EmergencyEvent" with:
+id, timestamp, phraseUsed, locationLat, locationLng,
+contactsNotified (comma-separated names), resolved (Boolean)
+Log every emergency activation for caregiver review.
+REQUIRED PERMISSIONS:
+Add to AndroidManifest.xml:
+android.permission.SEND_SMS
+android.permission.ACCESS_FINE_LOCATION
+android.permission.ACCESS_COARSE_LOCATION
+android.permission.CALL_PHONE
+Handle runtime permission requests gracefully:
+If SMS permission denied: Show "SMS alerts disabled" warning
+If Location denied: Send SMS without location
+If Call denied: Show "tap to call" without auto-dial
+TRIPLE-PRESS DETECTION:
+In the home screen's key event handler, add logic:
+Track timestamps of Enter key presses
+If 3 Enter presses occur within 1.5 seconds
+Navigate to EmergencyScreen automatically
+Play emergency activation sound
+NAVIGATION:
+Add "🚨 Emergency" to side drawer (always visible, red color)
+Add "📞 Emergency Contacts" to Settings screen
+Add small 🚨 icon to home screen top bar (always accessible)
+═══════════════════════════════════════════════════════════════════
+IMPLEMENTATION REQUIREMENTS
+═══════════════════════════════════════════════════════════════════
+For BOTH features:
+Provide COMPLETE Kotlin code for every file:
+All Room entities and DAOs
+All ViewModels
+All Composable screens
+Updated Database class with new entities
+Updated navigation graph
+Updated side drawer with new menu items
+Updated AndroidManifest.xml with permissions
+Follow the existing design system:
+Teal (#4ECDC4) for primary actions
+Coral (#FF6B6B) for important/speak buttons
+Red gradient for emergency
+20dp border radius for cards
+28dp border radius for hero elements
+Material Design 3 components
+Error handling:
+All database operations wrapped in try-catch
+All permission checks before dangerous operations
+User-friendly error messages (not technical)
+Graceful degradation (if permission denied, still work)
+Accessibility:
+All buttons minimum 56dp touch target
+Content descriptions for screen readers
+High contrast text on all backgrounds
+Emergency buttons EXTRA large (100dp height)
+Testing instructions:
+Tell me exactly how to test each feature
+Expected behavior for each test case
+Edge cases to verify
+═══════════════════════════════════════════════════════════════════
+IMPORTANT: DO NOT modify the existing TTS implementation.
+DO NOT modify the existing home screen layout.
+ADD to the existing code. Integrate via navigation and shared
+ViewModels.
+Start with the database layer, then ViewModels, then UI screens,
+then integration with existing code.
+Provide ALL files with complete code. Do not use placeholders
+or "implement this yourself" comments. Every function must be
+fully implemented.
+═══

@@ -1,0 +1,193 @@
+══
+TYPE TALK APP — FEATURE UPGRADE PROMPT 3 OF 6
+FEATURES: AI Predictive Text + Conversation AI Assistant
+PREREQUISITE: Prompts 1 & 2 completed
+═══════════════════════════════════════════════════════════════════
+CONTEXT:
+Type Talk app now has: TTS, analytics, emergency mode, voice
+banking, and mood-aware voice. Continue building.
+═══════════════════════════════════════════════════════════════════
+FEATURE 4: AI PREDICTIVE TEXT ENGINE
+═══════════════════════════════════════════════════════════════════
+PURPOSE:
+Reduce typing effort by 40-50% through intelligent word
+predictions. Shows AI/ML integration to judges.
+WHAT TO BUILD:
+PREDICTION ENGINE:
+Create "PredictionEngine" class that:
+a) WORD COMPLETION (after 2+ characters typed):
+Maintains a dictionary of 5,000 most common English words
+When user types 2+ characters, find matching words
+Sort by frequency (most common first)
+Return top 3-5 suggestions
+Example: User types "wa" → suggests: "water", "want", "was",
+"watch", "walk"
+b) NEXT WORD PREDICTION (after completing a word + space):
+Maintains bigram frequency table (word pairs)
+After user types a complete word and space, predict next word
+Example: "I want" → suggests: "to", "some", "water"
+Example: "Thank" → suggests: "you", "god", "goodness"
+Example: "Good" → suggests: "morning", "night", "job"
+c) PERSONAL LEARNING:
+Track which predictions user selects
+Boost those predictions' ranking over time
+Store personal frequency data in Room database
+After 1 week of use, predictions become personalized
+DICTIONARY DATA:
+Create the initial dictionary as a JSON asset file:
+Top 5,000 English words with frequency scores
+Top 2,000 bigrams with frequency scores
+Include AAC-specific phrases:
+"help", "water", "bathroom", "hungry", "tired", "pain",
+"medicine", "doctor", "please", "thank", "love", "happy",
+"sad", "scared", "cold", "hot", "yes", "no"
+Load this on first app launch into Room database table:
+"WordFrequency" entity:
+word (String, primary key)
+baseFrequency (Int — from dictionary)
+personalFrequency (Int — learned from user, starts at 0)
+totalScore (Int — base + personal, used for ranking)
+"BigramFrequency" entity:
+firstWord (String)
+secondWord (String)
+frequency (Int)
+Primary key: composite (firstWord, secondWord)
+PREDICTION UI:
+Update the existing predictive text bar on home screen:
+Horizontal scrollable row between input field and SPEAK button
+Show 3-5 prediction chips
+Each chip:
+Pill shape, border radius 24dp
+Background: Light teal (#4ECDC420)
+Text: Inter Medium 16sp
+Height: 44dp
+Padding: 16dp horizontal
+Tap behavior:
+Insert word at cursor position in input field
+Add space after word
+Immediately generate next predictions
+Smooth fade-out/fade-in animation (200ms)
+When input is empty: Show most-used phrases as suggestions
+When typing: Show word completions
+After word + space: Show next word predictions
+LEARNING MECHANISM:
+Every time user selects a prediction:
+Increment personalFrequency for that word by 1
+If it's a bigram selection, increment bigram frequency
+Recalculate totalScore
+Every time user types a word manually (not from predictions):
+Add word to dictionary if not present
+Set personalFrequency to 1
+Track the bigram (previous word + this word)
+PERFORMANCE:
+Predictions must appear within 100ms of typing
+Use in-memory trie data structure for fast prefix matching
+Load dictionary into memory on app start
+Background thread for database updates
+═══════════════════════════════════════════════════════════════════
+FEATURE 7: CONVERSATION AI ASSISTANT
+═══════════════════════════════════════════════════════════════════
+PURPOSE:
+Helps users who type fragmented or grammatically incorrect text
+by offering polished sentence alternatives. Uses Google Gemini
+API (free tier).
+WHAT TO BUILD:
+AI SENTENCE REFINEMENT:
+When user types text and taps a "✨ Refine" button:
+Send the raw text to Gemini API
+Receive 2-3 grammatically correct, natural sentence options
+Display options for user to select
+Example:
+User types: "hungry rice want eat"
+AI returns:
+Option 1: "I am feeling hungry. I would like to eat rice."
+Option 2: "Can I have some rice to eat please?"
+Option 3: "I want to eat rice, I'm hungry."
+User taps preferred option → it replaces input text
+User can then tap SPEAK
+AI SENTENCE EXPANSION:
+When user types a SHORT phrase and taps "✨ Expand":
+AI expands it into a complete, polite sentence
+Example:
+User types: "water"
+AI returns: "Can I please have a glass of water?"
+Example:
+User types: "tired sleep"
+AI returns: "I am feeling very tired and would like to go to
+sleep now."
+GEMINI API INTEGRATION:
+Use Google Gemini API (free tier — generativelanguage.googleapis.com):
+API Setup:
+Get free API key from: ai.google.dev
+Model: gemini-1.5-flash (fastest, free tier)
+Add to BuildConfig or local.properties (not hardcoded)
+API Call:
+Kotlin
+// Use Retrofit or simple HttpURLConnection
+// Endpoint: https://generativelanguage.googleapis.com/v1beta/
+// models/gemini-1.5-flash:generateContent
+// System prompt:
+"""
+You are a helpful communication assistant for a person with
+speech impairment using an AAC (Augmentative and Alternative
+Communication) device.
+The user types short, sometimes fragmented text. Your job is
+to understand their intent and provide 3 clear, natural, polite
+sentence options.
+Rules:
+Always provide exactly 3 options
+Keep sentences simple and clear
+First person perspective (I, me, my)
+Be warm and natural, not robotic
+If the input is already a good sentence, still provide
+slight variations
+Maximum 20 words per option
+Respond ONLY with the 3 options, numbered 1-3, nothing else
+User's text: {input}
+"""
+UI IMPLEMENTATION:
+Add to home screen:
+Small "✨" (sparkle) icon button next to the input field
+(top-right corner of input box)
+When tapped:
+a) Show loading indicator inside input field
+b) Call Gemini API with current text
+c) Show bottom sheet with 3 options:
+Bottom Sheet Design:
+Title: "✨ AI Suggestions" (Poppins Bold 20sp)
+3 suggestion cards stacked vertically:
+Each card: Full width, 64dp height, 16dp padding
+Card background: White with subtle teal border
+Text: Inter Regular 18sp
+Tap to select → replaces input text → auto-close sheet
+"Cancel" button at bottom
+Loading state: Shimmer animation on 3 placeholder cards
+OFFLINE FALLBACK:
+If no internet connection:
+Show message: "AI suggestions require internet. You can still
+type normally."
+Disable the ✨ button (gray out)
+Do NOT crash or show error
+RATE LIMITING:
+Cache recent API responses (same input = same output)
+Maximum 30 API calls per hour (free tier protection)
+Show "AI limit reached, try again later" if exceeded
+PRIVACY:
+Add privacy notice: "Your text is sent to Google AI to generate
+suggestions. No personal data is stored."
+Option in settings to disable AI features entirely
+Never send emergency mode text to AI
+═══════════════════════════════════════════════════════════════════
+IMPLEMENTATION REQUIREMENTS
+═══════════════════════════════════════════════════════════════════
+Complete Kotlin code for all new files
+Efficient dictionary loading (background coroutine)
+Trie data structure for fast prefix search
+Retrofit setup for Gemini API (or HttpURLConnection)
+Proper API key management (BuildConfig)
+Loading states for AI features
+Graceful offline handling
+All UI follows existing design system
+Testing instructions provided
+Provide ALL code. No placeholders. Complete implementation.
+═══════════════════════════════════════════════════════════════════
