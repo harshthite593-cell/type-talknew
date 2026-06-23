@@ -1,0 +1,92 @@
+Act as a senior React Native / Expo app developer. I am working on my Type Talk app in Replit using Expo.
+
+I want to modify the Emergency screen so it can be controlled by keyboard keys, not only by touch.
+
+Important: I have already assigned the keyboard key `E` to navigate/open the Emergency page. Now I want keyboard control inside the Emergency page.
+
+## Feature 1: Keyboard navigation on Emergency page
+
+On the Emergency page, add a selected pointer/highlight system for all emergency options.
+
+When the user presses the `N` key:
+- The selected pointer should move to the next emergency option.
+- Pressing `N` should NOT activate the option.
+- It should only move the highlight/selection.
+- When it reaches the last option, pressing `N` again should loop back to the first option.
+
+The selection order should be:
+
+1. I NEED HELP NOW
+2. I NEED MY MEDICINE
+3. I AM HAVING A PANIC ATTACK
+4. AMBULANCE
+5. I AM HURT
+6. CALL MY EMERGENCY CONTACT
+7. CALL 112
+8. SEND MY LOCATION TO CONTACTS
+
+Please make the selected option very visible by adding a border, glow, scale effect, or pointer icon like `👉`.
+
+## Feature 2: Enter key should activate selected option
+
+When the user presses the `Enter` key:
+- The currently selected emergency option should be activated.
+
+Behavior:
+- For normal phrase buttons like:
+  - I NEED HELP NOW
+  - I NEED MY MEDICINE
+  - I AM HAVING A PANIC ATTACK
+  - AMBULANCE
+  - I AM HURT
+
+  The app should speak the phrase loudly using the existing text-to-speech system.
+
+- For `CALL MY EMERGENCY CONTACT`, call or trigger the existing emergency contact function.
+
+- For `CALL 112`, open the phone dialer with emergency number 112 using the existing call function or React Native Linking.
+
+- For `SEND MY LOCATION TO CONTACTS`, use the existing location/contact sharing function. If the function does not exist, create it using Expo Location and SMS/Linking if possible.
+
+Important:
+- Do not remove the existing touch/tap functionality.
+- The buttons should still work when tapped.
+- Keyboard control should be an extra accessibility feature.
+
+## Feature 3: Use existing key handling if available
+
+The app already has a key binding where pressing `E` opens the Emergency page.
+
+Please inspect the existing keyboard handling code and reuse the same approach if possible.
+
+If this app is running in Expo Go, avoid adding unsupported native libraries unless absolutely necessary.
+
+If keyboard handling is only possible on web/Replit preview, implement it safely for web using `keydown` listeners, and make sure the code does not crash on Android/iOS.
+
+Use proper cleanup so the keyboard listener only works on the Emergency page and does not create duplicate listeners.
+
+## Feature 4: Fix app logo / splash image
+
+When the app starts, it currently shows a plain white logo instead of the Type Talk app logo.
+
+Please fix the Expo app logo and splash screen configuration.
+
+Update the Expo config file, either `app.json` or `app.config.js`, so that:
+- The app icon uses the Type Talk logo image.
+- The splash screen uses the Type Talk logo image.
+- Android adaptive icon is also configured.
+- iOS icon is configured if needed.
+
+Use the correct image paths from the assets folder. If the correct logo image is missing, tell me exactly where to place it, for example:
+
+`assets/type-talk-logo.png`
+
+Also update:
+- `icon`
+- `splash.image`
+- `android.adaptiveIcon.foregroundImage`
+
+After making the changes, tell me the command to clear the Expo cache and restart the app, for example:
+
+```bash
+npx expo start -c

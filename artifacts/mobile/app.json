@@ -15,11 +15,16 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.typetalk.app"
+      "bundleIdentifier": "com.typetalk.app",
+      "icon": "./assets/images/logo.png"
     },
     "android": {
       "backgroundColor": "#0D0F14",
-      "package": "com.typetalk.app"
+      "package": "com.typetalk.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#0D0F14"
+      }
     },
     "web": {
       "favicon": "./assets/images/logo.png"
