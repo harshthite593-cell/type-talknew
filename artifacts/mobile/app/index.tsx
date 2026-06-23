@@ -39,6 +39,7 @@ import {
   loadShortcuts,
   resolveShortcut,
 } from "@/utils/shortcuts";
+import { EMERGENCY_PHRASES } from "@/utils/emergency";
 
 const HISTORY_KEY = "tts_history_v1";
 const SETTINGS_KEY = "tts_settings_v1";
@@ -77,7 +78,9 @@ export default function TTSScreen() {
   const colors = useColors();
   const { profile, updateProfile } = useAuth();
   const insets = useSafeAreaInsets();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef      = useRef<TextInput>(null);
+  const screenFade    = useRef(new Animated.Value(0)).current;
+  const speakBtnScale = useRef(new Animated.Value(1)).current;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [text, setText] = useState("");
@@ -163,6 +166,14 @@ export default function TTSScreen() {
     })();
 
     const t = setTimeout(() => inputRef.current?.focus(), 600);
+
+    // Screen fade-in entrance animation
+    Animated.timing(screenFade, {
+      toValue: 1,
+      duration: 420,
+      useNativeDriver: true,
+    }).start();
+
     return () => clearTimeout(t);
   }, []);
 
@@ -753,6 +764,19 @@ export default function TTSScreen() {
                     if (cmd === "p") { router.push("/analytics"); return; }
                     if (cmd === "s") { router.push("/saved-phrases"); return; }
                     if (cmd === "b") { router.back(); return; }
+                    // ── Emergency phrase shortcuts: en=phrase1, enn=phrase2… ──
+                    const emergMatch = cmd.match(/^e(n{1,6})$/);
+                    if (emergMatch) {
+                      const phraseIndex = emergMatch[1].length - 1;
+                      const phrases = EMERGENCY_PHRASES as ReadonlyArray<{ emoji: string; text: string }>;
+                      if (phraseIndex < phrases.length) {
+                        router.push("/emergency");
+                        setTimeout(() => {
+                          Speech.speak(phrases[phraseIndex].text, { rate: 0.85, pitch: 1.05 });
+                        }, 400);
+                      }
+                      return;
+                    }
                     if (cmd === "e") { router.push("/emergency"); return; }
                     if (cmd === "t") { router.push("/typing-test"); return; }
                     if (cmd === "h") { setTimeout(() => inputRef.current?.focus(), 150); return; }

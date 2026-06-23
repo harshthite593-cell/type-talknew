@@ -30,51 +30,50 @@ const CORAL = "#FF6B6B";
 const DARK_RED = "#C53030";
 const WHITE = "#FFFFFF";
 
-// ── Keyboard navigation constants ────────────────────────────────
-// Items 0 … EMERGENCY_PHRASES.length-1 = phrase grid cards
-// Item CALL_112_IDX                     = CALL 112 button
-// Item SEND_LOC_IDX                     = Send Location button
-const CALL_112_IDX = EMERGENCY_PHRASES.length;        // 6
-const SEND_LOC_IDX = EMERGENCY_PHRASES.length + 1;    // 7
-const TOTAL_ITEMS  = EMERGENCY_PHRASES.length + 2;    // 8
-
 export default function EmergencyScreen() {
-  const insets = useSafeAreaInsets();
-  const topPad   = Platform.OS === "web" ? 67 : insets.top;
+  const insets    = useSafeAreaInsets();
+  const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const [speakingPhrase, setSpeakingPhrase] = useState<string | null>(null);
-  const [usedPhrases, setUsedPhrases]       = useState<Set<string>>(new Set());
+  const [speakingPhrase,  setSpeakingPhrase]  = useState<string | null>(null);
+  const [usedPhrases,     setUsedPhrases]     = useState<Set<string>>(new Set());
   const [sendingLocation, setSendingLocation] = useState(false);
-  const [statusMsg, setStatusMsg]           = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex]   = useState<number | null>(null);
+  const [statusMsg,       setStatusMsg]       = useState<string | null>(null);
 
-  // Refs for stable access inside useCallback closures
-  const selectedIndexRef = useRef<number | null>(null);
-  selectedIndexRef.current = selectedIndex;
-  const lastPhraseRef = useRef<string | null>(null);
+  const lastPhraseRef  = useRef<string | null>(null);
+  const pulseAnim      = useRef(new Animated.Value(1)).current;
+  const statusOpacity  = useRef(new Animated.Value(0)).current;
 
-  const pulseAnim    = useRef(new Animated.Value(1)).current;
-  const statusOpacity = useRef(new Animated.Value(0)).current;
-  const selectedScale = useRef(new Animated.Value(1)).current;
+  // Per-card entrance animations
+  const cardAnims = useRef(
+    [...Array(EMERGENCY_PHRASES.length + 2)].map(() => new Animated.Value(0))
+  ).current;
 
-  // ── Pulse header animation ───────────────────────────────────
   useEffect(() => {
+    // Staggered card entrance
+    const animations = cardAnims.map((anim, i) =>
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 280,
+        delay: i * 60,
+        useNativeDriver: true,
+      })
+    );
+    Animated.stagger(60, animations).start();
+
+    // Pulsing header
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.04, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 700, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1,    duration: 700, useNativeDriver: true }),
       ])
     );
     pulse.start();
 
     logEmergencyEvent({
-      timestamp: Date.now(),
-      phraseUsed: "",
-      locationLat: null,
-      locationLng: null,
-      contactsNotified: "",
-      resolved: false,
+      timestamp: Date.now(), phraseUsed: "",
+      locationLat: null, locationLng: null,
+      contactsNotified: "", resolved: false,
     });
 
     return () => {
@@ -83,16 +82,6 @@ export default function EmergencyScreen() {
     };
   }, []);
 
-  // ── Animate selection card when index changes ───────────────
-  useEffect(() => {
-    if (selectedIndex === null) return;
-    Animated.sequence([
-      Animated.timing(selectedScale, { toValue: 1.04, duration: 120, useNativeDriver: true }),
-      Animated.timing(selectedScale, { toValue: 1.02, duration: 80,  useNativeDriver: true }),
-    ]).start();
-  }, [selectedIndex]);
-
-  // ── Status toast ─────────────────────────────────────────────
   const showStatus = useCallback((msg: string) => {
     setStatusMsg(msg);
     Animated.sequence([
@@ -102,22 +91,19 @@ export default function EmergencyScreen() {
     ]).start(() => setStatusMsg(null));
   }, [statusOpacity]);
 
-  // ── Speak phrase ─────────────────────────────────────────────
   const speakPhrase = useCallback(async (phrase: string) => {
     try { await Speech.stop(); } catch {}
     setSpeakingPhrase(phrase);
     lastPhraseRef.current = phrase;
     setUsedPhrases((prev) => new Set([...prev, phrase]));
     Speech.speak(phrase, {
-      rate: 0.85,
-      pitch: 1.0,
+      rate: 0.85, pitch: 1.0,
       onDone:    () => setSpeakingPhrase(null),
       onStopped: () => setSpeakingPhrase(null),
       onError:   () => setSpeakingPhrase(null),
     });
   }, []);
 
-  // ── Call 112 ─────────────────────────────────────────────────
   const callEmergency = useCallback(() => {
     const url = "tel:112";
     Linking.canOpenURL(url).then((ok) => {
@@ -126,7 +112,6 @@ export default function EmergencyScreen() {
     });
   }, []);
 
-  // ── Send location SMS ────────────────────────────────────────
   const sendLocation = useCallback(async () => {
     setSendingLocation(true);
     showStatus("Getting location…");
@@ -138,20 +123,17 @@ export default function EmergencyScreen() {
         return;
       }
       const { status } = await Location.requestForegroundPermissionsAsync();
-      let locationText = "";
-      let lat: number | null = null;
-      let lng: number | null = null;
+      let locationText = "", lat: number | null = null, lng: number | null = null;
       if (status === "granted") {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
+        lat = loc.coords.latitude; lng = loc.coords.longitude;
         locationText = `https://maps.google.com/?q=${lat},${lng}`;
       } else {
         locationText = "(Location permission denied)";
       }
-      const phrase = lastPhraseRef.current ?? "Emergency alert";
+      const phrase    = lastPhraseRef.current ?? "Emergency alert";
       const timestamp = new Date().toLocaleString();
-      const message =
+      const message   =
         `🚨 EMERGENCY ALERT via Type Talk App.\n` +
         `Message: "${phrase}"\n` +
         `Location: ${locationText}\n` +
@@ -177,28 +159,6 @@ export default function EmergencyScreen() {
     setSendingLocation(false);
   }, [showStatus]);
 
-  // ── Keyboard: N + Enter → next item ─────────────────────────
-  const handleNext = useCallback(() => {
-    setSelectedIndex((prev) =>
-      prev === null ? 0 : (prev + 1) % TOTAL_ITEMS
-    );
-  }, []);
-
-  // ── Keyboard: Enter alone → activate selected item ───────────
-  const handleActivate = useCallback(() => {
-    const idx = selectedIndexRef.current;
-    if (idx === null) return;
-    const phrases = EMERGENCY_PHRASES as ReadonlyArray<{ emoji: string; text: string }>;
-    if (idx < EMERGENCY_PHRASES.length) {
-      speakPhrase(phrases[idx].text);
-    } else if (idx === CALL_112_IDX) {
-      callEmergency();
-    } else {
-      sendLocation();
-    }
-  }, [speakPhrase, callEmergency, sendLocation]);
-
-  // ── Confirm safe ─────────────────────────────────────────────
   const confirmSafe = () => {
     Alert.alert("Are you safe?", "Confirm that you are no longer in danger.", [
       { text: "No, stay here", style: "cancel" },
@@ -208,10 +168,8 @@ export default function EmergencyScreen() {
           await logEmergencyEvent({
             timestamp: Date.now(),
             phraseUsed: lastPhraseRef.current ?? "",
-            locationLat: null,
-            locationLng: null,
-            contactsNotified: "",
-            resolved: true,
+            locationLat: null, locationLng: null,
+            contactsNotified: "", resolved: true,
           });
           router.back();
         },
@@ -249,9 +207,7 @@ export default function EmergencyScreen() {
       <Animated.View style={[s.headerBlock, { transform: [{ scale: pulseAnim }] }]}>
         <Text style={s.headerEmoji}>🚨</Text>
         <Text style={s.headerTitle}>EMERGENCY</Text>
-        <Text style={s.headerSub}>
-          Tap to speak  ·  Keyboard: <Text style={s.headerKey}>N</Text>↵ navigate  ·  ↵ activate
-        </Text>
+        <Text style={s.headerSub}>Tap a phrase to speak it loudly</Text>
       </Animated.View>
 
       {/* Status toast */}
@@ -261,51 +217,39 @@ export default function EmergencyScreen() {
         </Animated.View>
       )}
 
-      {/* Keyboard hint bar — shows when an item is selected */}
-      {selectedIndex !== null && (
-        <View style={s.kbHintBar}>
-          <Text style={s.kbHintText}>
-            👉 Item {selectedIndex + 1} of {TOTAL_ITEMS} selected  ·  ↵ to activate
-          </Text>
-        </View>
-      )}
-
       {/* Scrollable content */}
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Phrase grid */}
+        {/* Phrase grid — staggered entrance */}
         <View style={s.grid}>
           {(EMERGENCY_PHRASES as ReadonlyArray<{ emoji: string; text: string }>).map(({ emoji, text }, idx) => {
-            const isActive   = speakingPhrase === text;
-            const wasUsed    = usedPhrases.has(text);
-            const isSelected = selectedIndex === idx;
+            const isActive = speakingPhrase === text;
+            const wasUsed  = usedPhrases.has(text);
             return (
               <Animated.View
                 key={text}
                 style={[
                   s.phraseCardWrap,
-                  isSelected && { transform: [{ scale: selectedScale }] },
+                  {
+                    opacity: cardAnims[idx],
+                    transform: [{ translateY: cardAnims[idx].interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+                  },
                 ]}
               >
                 <TouchableOpacity
                   style={[
                     s.phraseBtn,
-                    isActive   && s.phraseBtnActive,
+                    isActive && s.phraseBtnActive,
                     wasUsed && !isActive && s.phraseBtnUsed,
-                    isSelected && s.phraseBtnSelected,
                   ]}
                   onPress={() => speakPhrase(text)}
-                  activeOpacity={0.75}
+                  activeOpacity={0.72}
                 >
-                  {isSelected && <Text style={s.pointerEmoji}>👉</Text>}
                   <Text style={s.phraseEmoji}>{emoji}</Text>
-                  <Text
-                    style={[s.phraseText, isActive && s.phraseTextActive]}
-                    numberOfLines={2}
-                  >
+                  <Text style={[s.phraseText, isActive && s.phraseTextActive]} numberOfLines={2}>
                     {text}
                   </Text>
                   {isActive && <Text style={s.speakingLabel}>Speaking…</Text>}
@@ -316,39 +260,42 @@ export default function EmergencyScreen() {
         </View>
 
         {/* CALL 112 */}
-        <TouchableOpacity
-          style={[s.callBtn, selectedIndex === CALL_112_IDX && s.callBtnSelected]}
-          onPress={callEmergency}
-          activeOpacity={0.85}
+        <Animated.View
+          style={{
+            opacity: cardAnims[EMERGENCY_PHRASES.length],
+            transform: [{ translateY: cardAnims[EMERGENCY_PHRASES.length].interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+          }}
         >
-          {selectedIndex === CALL_112_IDX && <Text style={s.pointerEmojiLarge}>👉</Text>}
-          <Text style={s.callBtnEmoji}>📞</Text>
-          <Text style={s.callBtnText}>CALL 112</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={s.callBtn} onPress={callEmergency} activeOpacity={0.85}>
+            <Text style={s.callBtnEmoji}>📞</Text>
+            <Text style={s.callBtnText}>CALL 112</Text>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Send location */}
-        <TouchableOpacity
-          style={[
-            s.locationBtn,
-            sendingLocation && s.locationBtnDisabled,
-            selectedIndex === SEND_LOC_IDX && s.locationBtnSelected,
-          ]}
-          onPress={sendLocation}
-          disabled={sendingLocation}
-          activeOpacity={0.8}
+        <Animated.View
+          style={{
+            opacity: cardAnims[EMERGENCY_PHRASES.length + 1],
+            transform: [{ translateY: cardAnims[EMERGENCY_PHRASES.length + 1].interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+          }}
         >
-          {selectedIndex === SEND_LOC_IDX && <Text style={s.pointerEmojiLarge}>👉</Text>}
-          <Text style={s.locationBtnEmoji}>📍</Text>
-          <Text style={s.locationBtnText}>
-            {sendingLocation ? "Sending…" : "Send My Location to Contacts"}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.locationBtn, sendingLocation && s.locationBtnDisabled]}
+            onPress={sendLocation}
+            disabled={sendingLocation}
+            activeOpacity={0.8}
+          >
+            <Text style={s.locationBtnEmoji}>📍</Text>
+            <Text style={s.locationBtnText}>
+              {sendingLocation ? "Sending…" : "Send My Location to Contacts"}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
 
         <View style={{ height: bottomPad + 16 }} />
       </ScrollView>
 
-      {/* Keyboard handler — N+Enter = next, Enter alone = activate */}
-      <GlobalKeyShortcuts extras={{ n: handleNext, "": handleActivate }} />
+      <GlobalKeyShortcuts />
     </View>
   );
 }
@@ -367,7 +314,7 @@ function makeStyles(topPad: number, bottomPad: number) {
       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100,
       borderWidth: 1, borderColor: "rgba(255,255,255,0.4)",
     },
-    safeBtnText: { fontSize: 13, color: WHITE, fontFamily: "Inter_500Medium" },
+    safeBtnText:  { fontSize: 13, color: WHITE, fontFamily: "Inter_500Medium" },
     contactsBtn: {
       width: 36, height: 36, borderRadius: 18,
       borderWidth: 1, borderColor: "rgba(255,255,255,0.4)",
@@ -386,22 +333,8 @@ function makeStyles(topPad: number, bottomPad: number) {
       fontFamily: "Inter_700Bold", letterSpacing: 2, marginTop: 4,
     },
     headerSub: {
-      fontSize: 12, color: "rgba(255,255,255,0.75)",
-      fontFamily: "Inter_400Regular", marginTop: 4, textAlign: "center",
-    },
-    headerKey: {
-      fontFamily: "Inter_700Bold", color: WHITE, fontSize: 13,
-    },
-
-    // Keyboard hint bar
-    kbHintBar: {
-      marginHorizontal: 14, marginBottom: 6,
-      backgroundColor: "rgba(0,0,0,0.3)",
-      borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14,
-    },
-    kbHintText: {
-      fontSize: 12, color: "rgba(255,255,255,0.9)",
-      fontFamily: "Inter_500Medium", textAlign: "center",
+      fontSize: 13, color: "rgba(255,255,255,0.8)",
+      fontFamily: "Inter_400Regular", marginTop: 4,
     },
 
     statusBar: {
@@ -414,82 +347,43 @@ function makeStyles(topPad: number, bottomPad: number) {
       fontFamily: "Inter_500Medium", textAlign: "center",
     },
 
-    // Grid
     grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 14 },
     phraseCardWrap: { width: "48%" },
     phraseBtn: {
       minHeight: 100, backgroundColor: WHITE, borderRadius: 20,
-      padding: 14, alignItems: "center", justifyContent: "center", gap: 4,
-      borderWidth: 3, borderColor: "transparent",
+      padding: 14, alignItems: "center", justifyContent: "center", gap: 6,
     },
-    phraseBtnActive: {
-      backgroundColor: "#FFE66D",
-      transform: [{ scale: 0.97 }],
-    },
+    phraseBtnActive: { backgroundColor: "#FFE66D", transform: [{ scale: 0.97 }] },
     phraseBtnUsed: {
       backgroundColor: "rgba(255,255,255,0.85)",
-      borderColor: "rgba(255,255,255,0.5)",
+      borderWidth: 2, borderColor: "rgba(255,255,255,0.5)",
     },
-    phraseBtnSelected: {
-      borderColor: WHITE,
-      backgroundColor: "#FFF8F8",
-      shadowColor: WHITE,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.9,
-      shadowRadius: 12,
-      elevation: 12,
-    },
-    pointerEmoji: {
-      position: "absolute", top: 6, left: 8,
-      fontSize: 16, lineHeight: 20,
-    },
-    phraseEmoji: { fontSize: 28 },
+    phraseEmoji:     { fontSize: 28 },
     phraseText: {
       fontSize: 13, fontWeight: "700" as const, color: CORAL,
       fontFamily: "Inter_700Bold", textAlign: "center",
     },
     phraseTextActive: { color: DARK_RED },
-    speakingLabel: { fontSize: 11, color: DARK_RED, fontFamily: "Inter_400Regular" },
+    speakingLabel:    { fontSize: 11, color: DARK_RED, fontFamily: "Inter_400Regular" },
 
-    // Call 112
     callBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
       gap: 10, backgroundColor: WHITE, borderRadius: 20,
       height: 80, marginBottom: 12,
-      borderWidth: 3, borderColor: "transparent",
-    },
-    callBtnSelected: {
-      borderColor: WHITE,
-      shadowColor: WHITE,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.9,
-      shadowRadius: 12,
-      elevation: 12,
-      backgroundColor: "#FFFDF0",
     },
     callBtnEmoji: { fontSize: 28 },
     callBtnText: {
       fontSize: 24, fontWeight: "700" as const, color: CORAL,
       fontFamily: "Inter_700Bold", letterSpacing: 1,
     },
-    pointerEmojiLarge: { fontSize: 22, marginRight: 4 },
 
-    // Location button
     locationBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 8, borderWidth: 3, borderColor: WHITE, borderRadius: 16,
+      gap: 8, borderWidth: 2, borderColor: WHITE, borderRadius: 16,
       height: 56, marginBottom: 12,
     },
     locationBtnDisabled: { opacity: 0.6 },
-    locationBtnSelected: {
-      borderColor: "#FFE66D",
-      shadowColor: "#FFE66D",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.9,
-      shadowRadius: 12,
-      elevation: 12,
-    },
-    locationBtnEmoji: { fontSize: 18 },
+    locationBtnEmoji:    { fontSize: 18 },
     locationBtnText: {
       fontSize: 15, fontWeight: "600" as const, color: WHITE,
       fontFamily: "Inter_600SemiBold",
