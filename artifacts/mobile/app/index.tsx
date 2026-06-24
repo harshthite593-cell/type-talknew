@@ -75,12 +75,11 @@ interface HistoryEntry {
 type Panel = "main" | "settings" | "history";
 
 export default function TTSScreen() {
+  "use no memo";
   const colors = useColors();
   const { profile, updateProfile } = useAuth();
   const insets = useSafeAreaInsets();
-  const inputRef      = useRef<TextInput>(null);
-  const screenFade    = useRef(new Animated.Value(0)).current;
-  const speakBtnScale = useRef(new Animated.Value(1)).current;
+  const inputRef = useRef<TextInput>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [text, setText] = useState("");
@@ -166,14 +165,6 @@ export default function TTSScreen() {
     })();
 
     const t = setTimeout(() => inputRef.current?.focus(), 600);
-
-    // Screen fade-in entrance animation
-    Animated.timing(screenFade, {
-      toValue: 1,
-      duration: 420,
-      useNativeDriver: true,
-    }).start();
-
     return () => clearTimeout(t);
   }, []);
 
