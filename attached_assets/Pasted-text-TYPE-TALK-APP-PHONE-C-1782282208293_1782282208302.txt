@@ -1,0 +1,987 @@
+text
+
+═══════════════════════════════════════════════════════════════════
+TYPE TALK APP — PHONE CALL MODE FEATURE
+Framework: React Native + Expo Router
+═══════════════════════════════════════════════════════════════════
+
+⚠️ CRITICAL: DO NOT BREAK existing features:
+❌ Don't modify expo-speech TTS implementation
+❌ Don't change Bluetooth glove input handling
+❌ Don't break home screen
+❌ Don't break voice banking (just added)
+❌ Don't break saved phrases
+
+YOU CAN ONLY ADD Phone Call Mode as a new screen/feature.
+
+═══════════════════════════════════════════════════════════════════
+PACKAGES TO INSTALL FIRST
+═══════════════════════════════════════════════════════════════════
+
+Run in Replit terminal:
+
+npx expo install expo-av
+
+If expo-av is already installed (from voice banking), skip this.
+
+No other packages needed - we'll use existing:
+✅ expo-speech (TTS)
+✅ expo-haptics (vibration feedback)
+✅ @expo/vector-icons (icons)
+✅ expo-av (audio routing)
+
+═══════════════════════════════════════════════════════════════════
+WHAT TO BUILD: PHONE CALL MODE
+═══════════════════════════════════════════════════════════════════
+
+PURPOSE:
+Create a special "Call Mode" interface that helps speech-impaired 
+users communicate during phone calls. When activated:
+- Switches to optimized large-button interface
+- Enables loudest speakerphone audio
+- Quick-tap common call phrases
+- Live typing that speaks immediately
+- Caller hears TTS clearly through phone speaker
+
+═══════════════════════════════════════════════════════════════════
+IMPLEMENTATION
+═══════════════════════════════════════════════════════════════════
+
+STEP 1: CREATE CALL MANAGER SERVICE
+
+Create file: services/callManagerService.ts
+
+```typescript
+import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { voiceBank } from './voiceBankService';
+
+export interface CallPhrase {
+  id: string;
+  emoji: string;
+  display: string;
+  speakText: string;
+  category: 'greeting' | 'response' | 'question' | 'emergency' | 'custom';
+}
+
+export const DEFAULT_CALL_PHRASES: CallPhrase[] = [
+  // Greetings
+  {
+    id: '1',
+    emoji: '👋',
+    display: 'Hello, how are you?',
+    speakText: 'Hello, how are you?',
+    category: 'greeting',
+  },
+  {
+    id: '2',
+    emoji: '👋',
+    display: 'Hi! Good to hear from you',
+    speakText: 'Hi! It is good to hear from you.',
+    category: 'greeting',
+  },
+  // Responses
+  {
+    id: '3',
+    emoji: '✅',
+    display: 'Yes',
+    speakText: 'Yes',
+    category: 'response',
+  },
+  {
+    id: '4',
+    emoji: '❌',
+    display: 'No',
+    speakText: 'No',
+    category: 'response',
+  },
+  {
+    id: '5',
+    emoji: '🙏',
+    display: 'Thank you',
+    speakText: 'Thank you very much.',
+    category: 'response',
+  },
+  {
+    id: '6',
+    emoji: '😊',
+    display: "I'm fine, thanks",
+    speakText: 'I am fine, thank you for asking.',
+    category: 'response',
+  },
+  // Communication
+  {
+    id: '7',
+    emoji: '✋',
+    display: 'Please wait, typing...',
+    speakText: 'Please wait a moment, I am typing my response.',
+    category: 'question',
+  },
+  {
+    id: '8',
+    emoji: '❓',
+    display: 'Can you repeat?',
+    speakText: 'Can you please repeat that?',
+    category: 'question',
+  },
+  {
+    id: '9',
+    emoji: '🗣️',
+    display: 'Speak slower please',
+    speakText: 'Please speak a little slower.',
+    category: 'question',
+  },
+  // Practical
+  {
+    id: '10',
+    emoji: '📞',
+    display: 'Call me back later',
+    speakText: 'Please call me back later, I am busy right now.',
+    category: 'question',
+  },
+  {
+    id: '11',
+    emoji: '👨‍👩‍👧',
+    display: 'Getting my parent',
+    speakText: 'Please wait, let me get my parent to help.',
+    category: 'question',
+  },
+  {
+    id: '12',
+    emoji: '👋',
+    display: 'Goodbye',
+    speakText: 'Goodbye, have a nice day.',
+    category: 'greeting',
+  },
+  // Emergency
+  {
+    id: '13',
+    emoji: '🆘',
+    display: 'I need help!',
+    speakText: 'I need help, please send someone immediately.',
+    category: 'emergency',
+  },
+  {
+    id: '14',
+    emoji: '🚨',
+    display: 'EMERGENCY!',
+    speakText: 'This is an emergency! Please call 112 or come to my location now.',
+    category: 'emergency',
+  },
+];
+
+class CallManagerService {
+  private isInCallMode: boolean = false;
+  private originalAudioMode: any = null;
+
+  // Activate call mode - configure audio for speakerphone
+  async activateCallMode(): Promise<boolean> {
+    try {
+      // Configure audio mode for loudest playback through speaker
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false, // Force speaker
+        allowsRecordingIOS: false,
+      });
+
+      this.isInCallMode = true;
+      
+      // Haptic feedback to confirm activation
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to activate call mode:', error);
+      return false;
+    }
+  }
+
+  // Deactivate call mode - restore normal audio
+  async deactivateCallMode(): Promise<void> {
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: false,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        allowsRecordingIOS: true,
+      });
+
+      this.isInCallMode = false;
+      
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error('Failed to deactivate call mode:', error);
+    }
+  }
+
+  // Speak text loudly through phone speaker (for caller to hear)
+  async speakForCall(text: string): Promise<void> {
+    if (!text.trim()) return;
+
+    try {
+      // First check voice bank for personal voice
+      const playedFromBank = await voiceBank.tryPlayFromVoiceBank(text);
+      
+      if (!playedFromBank) {
+        // Fall back to TTS at maximum volume
+        Speech.speak(text, {
+          language: 'en-US',
+          pitch: 1.0,
+          rate: 1.0,
+          volume: 1.0, // Maximum volume
+        });
+      }
+
+      // Haptic feedback
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (error) {
+      console.error('Failed to speak:', error);
+    }
+  }
+
+  // Stop current speech
+  async stopSpeaking(): Promise<void> {
+    Speech.stop();
+  }
+
+  // Save custom call phrase
+  async saveCustomPhrase(phrase: CallPhrase): Promise<void> {
+    try {
+      const data = await AsyncStorage.getItem('custom_call_phrases');
+      const phrases: CallPhrase[] = data ? JSON.parse(data) : [];
+      phrases.push(phrase);
+      await AsyncStorage.setItem('custom_call_phrases', JSON.stringify(phrases));
+    } catch (error) {
+      console.error('Failed to save custom phrase:', error);
+    }
+  }
+
+  // Get all custom phrases
+  async getCustomPhrases(): Promise<CallPhrase[]> {
+    try {
+      const data = await AsyncStorage.getItem('custom_call_phrases');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // Delete custom phrase
+  async deleteCustomPhrase(phraseId: string): Promise<void> {
+    try {
+      const data = await AsyncStorage.getItem('custom_call_phrases');
+      const phrases: CallPhrase[] = data ? JSON.parse(data) : [];
+      const filtered = phrases.filter(p => p.id !== phraseId);
+      await AsyncStorage.setItem('custom_call_phrases', JSON.stringify(filtered));
+    } catch (error) {
+      console.error('Failed to delete custom phrase:', error);
+    }
+  }
+
+  // Get all phrases (default + custom)
+  async getAllPhrases(): Promise<CallPhrase[]> {
+    const customPhrases = await this.getCustomPhrases();
+    return [...DEFAULT_CALL_PHRASES, ...customPhrases];
+  }
+
+  // Log call event for analytics
+  async logCallEvent(action: 'started' | 'ended' | 'phrase_spoken', detail?: string) {
+    try {
+      const log = {
+        timestamp: Date.now(),
+        action,
+        detail,
+      };
+      const existing = await AsyncStorage.getItem('call_logs');
+      const logs = existing ? JSON.parse(existing) : [];
+      logs.push(log);
+      // Keep last 100 logs only
+      if (logs.length > 100) logs.shift();
+      await AsyncStorage.setItem('call_logs', JSON.stringify(logs));
+    } catch (error) {
+      console.error('Failed to log call event:', error);
+    }
+  }
+}
+
+export const callManager = new CallManagerService();
+STEP 2: CREATE CALL MODE SCREEN
+
+Create file: app/call-mode.tsx
+
+TypeScript
+
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Animated,
+  Modal,
+  Dimensions,
+} from 'react-native';
+import { useRouter, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { callManager, CallPhrase, DEFAULT_CALL_PHRASES } from '../services/callManagerService';
+
+const { width } = Dimensions.get('window');
+
+export default function CallModeScreen() {
+  const router = useRouter();
+  const [typedText, setTypedText] = useState('');
+  const [phrases, setPhrases] = useState<CallPhrase[]>(DEFAULT_CALL_PHRASES);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isCallModeActive, setIsCallModeActive] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  // Pulse animation for active status
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    initializeCallMode();
+    startPulseAnimation();
+    
+    // Cleanup when leaving screen
+    return () => {
+      callManager.deactivateCallMode();
+    };
+  }, []);
+
+  const initializeCallMode = async () => {
+    const activated = await callManager.activateCallMode();
+    setIsCallModeActive(activated);
+    
+    if (activated) {
+      await callManager.logCallEvent('started');
+      // Auto-focus the input field
+      setTimeout(() => inputRef.current?.focus(), 500);
+    }
+    
+    // Load all phrases including custom
+    const allPhrases = await callManager.getAllPhrases();
+    setPhrases(allPhrases);
+  };
+
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const handleSpeak = async (text: string) => {
+    if (!text.trim()) return;
+    
+    setIsSpeaking(true);
+    await callManager.speakForCall(text);
+    await callManager.logCallEvent('phrase_spoken', text);
+    
+    // Reset speaking state after 2 seconds
+    setTimeout(() => setIsSpeaking(false), 2000);
+  };
+
+  const handleSpeakTyped = async () => {
+    if (!typedText.trim()) {
+      Alert.alert('Empty Message', 'Please type something first');
+      return;
+    }
+    
+    await handleSpeak(typedText);
+    setTypedText(''); // Clear after speaking
+    inputRef.current?.focus();
+  };
+
+  const handlePhrasePress = async (phrase: CallPhrase) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await handleSpeak(phrase.speakText);
+  };
+
+  const handleExit = async () => {
+    await callManager.deactivateCallMode();
+    await callManager.logCallEvent('ended');
+    router.back();
+  };
+
+  const filteredPhrases = selectedCategory === 'all' 
+    ? phrases 
+    : phrases.filter(p => p.category === selectedCategory);
+
+  const categories = [
+    { id: 'all', label: 'All', emoji: '⭐' },
+    { id: 'greeting', label: 'Greetings', emoji: '👋' },
+    { id: 'response', label: 'Responses', emoji: '💬' },
+    { id: 'question', label: 'Questions', emoji: '❓' },
+    { id: 'emergency', label: 'Emergency', emoji: '🆘' },
+  ];
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <LinearGradient
+        colors={['#1A2332', '#2D3748']}
+        style={styles.background}
+      >
+        {/* HEADER */}
+        <Animated.View
+          style={[styles.header, { transform: [{ scale: pulseAnim }] }]}
+        >
+          <LinearGradient
+            colors={['#4ECDC4', '#2D7A77']}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusDot, isCallModeActive && styles.statusDotActive]} />
+                <Text style={styles.headerTitle}>📞 CALL MODE</Text>
+              </View>
+              <Text style={styles.headerSubtitle}>
+                🔊 Speakerphone ON • Volume Max
+              </Text>
+              <Text style={styles.headerHint}>
+                📱 Hold phone near your mouth so caller hears clearly
+              </Text>
+            </View>
+          </LinearGradient>
+        </Animated.View>
+
+        {/* TYPING AREA */}
+        <View style={styles.typingArea}>
+          <TextInput
+            ref={inputRef}
+            style={styles.textInput}
+            value={typedText}
+            onChangeText={setTypedText}
+            placeholder="Type your message here..."
+            placeholderTextColor="#999"
+            multiline
+            autoFocus
+          />
+          
+          <TouchableOpacity
+            style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
+            onPress={handleSpeakTyped}
+            disabled={!typedText.trim()}
+          >
+            <Ionicons name="volume-high" size={28} color="white" />
+            <Text style={styles.speakButtonText}>
+              {isSpeaking ? 'SPEAKING...' : 'SPEAK TO CALLER'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* CATEGORY FILTERS */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryRow}
+          contentContainerStyle={styles.categoryContent}
+        >
+          {categories.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[
+                styles.categoryChip,
+                selectedCategory === cat.id && styles.categoryChipActive,
+              ]}
+              onPress={() => setSelectedCategory(cat.id)}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  selectedCategory === cat.id && styles.categoryTextActive,
+                ]}
+              >
+                {cat.emoji} {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* QUICK PHRASES GRID */}
+        <ScrollView style={styles.phrasesContainer}>
+          <View style={styles.phraseGrid}>
+            {filteredPhrases.map((phrase) => (
+              <TouchableOpacity
+                key={phrase.id}
+                style={[
+                  styles.phraseButton,
+                  phrase.category === 'emergency' && styles.emergencyButton,
+                ]}
+                onPress={() => handlePhrasePress(phrase)}
+              >
+                <Text style={styles.phraseEmoji}>{phrase.emoji}</Text>
+                <Text
+                  style={[
+                    styles.phraseText,
+                    phrase.category === 'emergency' && styles.emergencyText,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {phrase.display}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* CONTROL BAR */}
+        <View style={styles.controlBar}>
+          <TouchableOpacity
+            style={styles.controlButton}
+            onPress={() => setShowAddModal(true)}
+          >
+            <Ionicons name="add-circle-outline" size={28} color="#4ECDC4" />
+            <Text style={styles.controlText}>Custom</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.controlButton}
+            onPress={() => callManager.stopSpeaking()}
+          >
+            <Ionicons name="stop-circle-outline" size={28} color="#FFE66D" />
+            <Text style={styles.controlText}>Stop</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.controlButton, styles.exitButton]}
+            onPress={handleExit}
+          >
+            <Ionicons name="close-circle" size={28} color="#FF6B6B" />
+            <Text style={[styles.controlText, styles.exitText]}>Exit Call Mode</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      {/* Add Custom Phrase Modal */}
+      <AddPhraseModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={async (phrase) => {
+          await callManager.saveCustomPhrase(phrase);
+          const allPhrases = await callManager.getAllPhrases();
+          setPhrases(allPhrases);
+          setShowAddModal(false);
+        }}
+      />
+    </View>
+  );
+}
+
+function AddPhraseModal({ visible, onClose, onAdd }: any) {
+  const [text, setText] = useState('');
+  const [emoji, setEmoji] = useState('💬');
+
+  const handleAdd = () => {
+    if (!text.trim()) {
+      Alert.alert('Error', 'Please enter a phrase');
+      return;
+    }
+
+    const phrase: CallPhrase = {
+      id: `custom_${Date.now()}`,
+      emoji,
+      display: text.trim(),
+      speakText: text.trim(),
+      category: 'custom',
+    };
+
+    onAdd(phrase);
+    setText('');
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Add Custom Phrase</Text>
+          
+          <Text style={styles.label}>Emoji:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {['💬', '👋', '✅', '❌', '🙏', '😊', '❓', '📞', '🆘', '⏰', '🍽️', '💊'].map((e) => (
+              <TouchableOpacity
+                key={e}
+                style={[
+                  styles.emojiChip,
+                  emoji === e && styles.emojiChipSelected,
+                ]}
+                onPress={() => setEmoji(e)}
+              >
+                <Text style={styles.emojiText}>{e}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <Text style={styles.label}>Phrase:</Text>
+          <TextInput
+            style={styles.modalInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="Type your custom phrase..."
+            multiline
+          />
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity style={styles.modalCancelBtn} onPress={onClose}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalAddBtn} onPress={handleAdd}>
+              <Text style={styles.modalAddText}>Add Phrase</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  background: { flex: 1, paddingTop: 40 },
+  
+  // Header
+  header: {
+    marginHorizontal: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  headerGradient: { padding: 20 },
+  headerContent: { alignItems: 'center' },
+  statusRow: { flexDirection: 'row', alignItems: 'center' },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#666',
+    marginRight: 8,
+  },
+  statusDotActive: { backgroundColor: '#48BB78' },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: 1,
+  },
+  headerSubtitle: {
+    color: 'white',
+    fontSize: 14,
+    marginTop: 8,
+    opacity: 0.9,
+  },
+  headerHint: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.8,
+  },
+
+  // Typing area
+  typingArea: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 16,
+  },
+  textInput: {
+    fontSize: 22,
+    minHeight: 80,
+    maxHeight: 120,
+    color: '#333',
+    textAlignVertical: 'top',
+  },
+  speakButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 18,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    elevation: 4,
+  },
+  speakButtonActive: {
+    backgroundColor: '#C53030',
+  },
+  speakButtonText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: 8,
+    letterSpacing: 0.5,
+  },
+
+  // Categories
+  categoryRow: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    maxHeight: 50,
+  },
+  categoryContent: { gap: 8 },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginRight: 8,
+  },
+  categoryChipActive: {
+    backgroundColor: '#4ECDC4',
+  },
+  categoryText: {
+    color: 'white',
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  categoryTextActive: {
+    fontWeight: 'bold',
+    opacity: 1,
+  },
+
+  // Phrases
+  phrasesContainer: { flex: 1, paddingHorizontal: 16, marginTop: 8 },
+  phraseGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingBottom: 16,
+  },
+  phraseButton: {
+    width: (width - 48) / 2,
+    backgroundColor: '#4ECDC4',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginBottom: 12,
+    alignItems: 'center',
+    minHeight: 90,
+    justifyContent: 'center',
+  },
+  emergencyButton: {
+    backgroundColor: '#F56565',
+  },
+  phraseEmoji: { fontSize: 28, marginBottom: 4 },
+  phraseText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emergencyText: { fontWeight: 'bold' },
+
+  // Control bar
+  controlBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  controlButton: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  controlText: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  exitButton: {},
+  exitText: { color: '#FF6B6B', fontWeight: 'bold' },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  emojiChip: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  emojiChipSelected: {
+    backgroundColor: '#4ECDC4',
+  },
+  emojiText: { fontSize: 24 },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  modalCancelBtn: { padding: 12, marginRight: 8 },
+  modalCancelText: { color: '#888', fontSize: 16 },
+  modalAddBtn: {
+    backgroundColor: '#4ECDC4',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  modalAddText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+});
+STEP 3: ADD CALL MODE BUTTON TO HOME SCREEN
+
+Find your home screen file (likely app/index.tsx or app/(tabs)/index.tsx)
+and add a prominent "Call Mode" button.
+
+Add this import at the top:
+
+TypeScript
+
+import { useRouter } from 'expo-router';
+Add this somewhere visible on the home screen (suggest near the top
+or as a floating action button):
+
+TypeScript
+
+const router = useRouter();
+
+// Add this button
+<TouchableOpacity
+  style={{
+    flexDirection: 'row',
+    backgroundColor: '#4ECDC4',
+    padding: 16,
+    borderRadius: 16,
+    margin: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+  }}
+  onPress={() => router.push('/call-mode')}
+>
+  <Ionicons name="call" size={24} color="white" />
+  <Text style={{
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  }}>
+    📞 Call Mode
+  </Text>
+</TouchableOpacity>
+═══════════════════════════════════════════════════════════════════
+USAGE FLOW EXPLANATION
+═══════════════════════════════════════════════════════════════════
+
+HOW THE USER USES CALL MODE:
+
+BEFORE A CALL:
+
+User opens Type Talk app
+Taps "📞 Call Mode" button
+App switches to call interface
+Speakerphone is now active
+MAKING A CALL:
+
+User stays in Call Mode
+Goes to phone dialer (separate app)
+Makes the call
+Returns to Type Talk Call Mode
+Types or taps phrases
+Caller hears TTS through phone speaker
+RECEIVING A CALL:
+
+Phone rings
+User answers normally
+User opens Type Talk (already in Call Mode)
+OR taps "Call Mode" button
+User communicates via TTS/phrases
+DURING CALL:
+
+Type quick message → tap "SPEAK TO CALLER"
+OR tap pre-made phrase buttons
+Caller hears spoken text loudly
+User can also use voice bank phrases
+AFTER CALL:
+
+User taps "Exit Call Mode"
+Audio returns to normal mode
+App returns to home screen
+═══════════════════════════════════════════════════════════════════
+TESTING CHECKLIST
+═══════════════════════════════════════════════════════════════════
+
+After implementation:
+
+✅ EXISTING FEATURES STILL WORK:
+
+Home screen unchanged
+TTS still speaks normally
+Bluetooth glove works
+Voice banking still works
+Saved phrases work
+✅ CALL MODE WORKS:
+
+Tap "📞 Call Mode" on home screen
+Call Mode screen opens with pulsing header
+See "Speakerphone ON" indicator
+Type text in input field
+Tap "SPEAK TO CALLER" → TTS plays loud
+Tap quick phrase button → speaks immediately
+Try category filters (greetings, emergency, etc.)
+Try adding custom phrase
+Custom phrase appears in list
+Tap "Exit Call Mode" → returns to home
